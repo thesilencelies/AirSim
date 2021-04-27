@@ -15,7 +15,6 @@
 #include "PawnSimApi.h"
 #include "common/StateReporterWrapper.hpp"
 #include "LoadingScreenWidget.h"
-
 #include "SimModeBase.generated.h"
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FLevelLoaded);
@@ -61,6 +60,7 @@ public:
     virtual bool isPaused() const;
     virtual void pause(bool is_paused);
     virtual void continueForTime(double seconds);
+    virtual void continueForFrames(uint32_t frames);
 
     virtual void setWind(const msr::airlib::Vector3r& wind) const;
 
@@ -74,6 +74,9 @@ public:
     void startApiServer();
     void stopApiServer();
     bool isApiServerStarted();
+
+    bool createVehicleAtRuntime(const std::string& vehicle_name, const std::string& vehicle_type,
+        const msr::airlib::Pose& pose, const std::string& pawn_path = "");
 
     const NedTransform& getGlobalNedTransform();
 
@@ -107,8 +110,11 @@ protected: //must overrides
         const PawnSimApi::Params& pawn_sim_api_params) const;
     virtual msr::airlib::VehicleApiBase* getVehicleApi(const PawnSimApi::Params& pawn_sim_api_params,
         const PawnSimApi* sim_api) const;
+    virtual void registerPhysicsBody(msr::airlib::VehicleSimApiBase *physicsBody);
 
 protected: //optional overrides
+    virtual APawn* createVehiclePawn(const AirSimSettings::VehicleSetting& vehicle_setting);
+    virtual std::unique_ptr<PawnSimApi> createVehicleApi(APawn* vehicle_pawn);
     virtual void setupVehiclesAndCamera();
     virtual void setupInputBindings();
     //called when SimMode should handle clock speed setting
@@ -124,7 +130,6 @@ protected: //Utility methods for derived classes
 
 protected:
     int record_tick_count;
-
     UPROPERTY() UClass* pip_camera_class;
     UPROPERTY() UParticleSystem* collision_display_template;
 

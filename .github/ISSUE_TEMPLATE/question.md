@@ -1,6 +1,6 @@
 ---
-name: Question
-about: Ask a question
+name: Support Questions
+about: Your question may be moved to https://github.com/microsoft/AirSim/discussions.
 ---
 <!-- ⚠️⚠️ Do Not Delete This! question_template ⚠️⚠️ -->
 <!-- Please read our Rules of Conduct: https://opensource.microsoft.com/codeofconduct/ -->

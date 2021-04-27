@@ -5,6 +5,8 @@
 #define air_WorldSimApiBase_hpp
 
 #include "common/CommonStructs.hpp"
+#include "common/AirSimSettings.hpp"
+
 
 namespace msr { namespace airlib {
 
@@ -34,6 +36,7 @@ public:
     virtual void reset() = 0;
     virtual void pause(bool is_paused) = 0;
     virtual void continueForTime(double seconds) = 0;
+    virtual void continueForFrames(uint32_t frames) = 0;
 
     virtual void setTimeOfDay(bool is_enabled, const std::string& start_datetime, bool is_start_datetime_dst,
         float celestial_clock_speed, float update_interval_secs, bool move_sun) = 0;
@@ -43,6 +46,8 @@ public:
 
     virtual bool setSegmentationObjectID(const std::string& mesh_name, int object_id, bool is_name_regex = false) = 0;
     virtual int getSegmentationObjectID(const std::string& mesh_name) const = 0;
+
+    virtual bool addVehicle(const std::string& vehicle_name, const std::string& vehicle_type, const Pose& pose, const std::string& pawn_path = "") = 0;
 
     virtual void printLogMessage(const std::string& message,
         const std::string& message_param = "", unsigned char severity = 0) = 0;
@@ -63,9 +68,10 @@ public:
     virtual bool setObjectPose(const std::string& object_name, const Pose& pose, bool teleport) = 0;
     virtual bool runConsoleCommand(const std::string& command) = 0;
     virtual bool setObjectScale(const std::string& object_name, const Vector3r& scale) = 0;
-
 	virtual std::unique_ptr<std::vector<std::string>> swapTextures(const std::string& tag, int tex_id = 0, int component_id = 0, int material_id = 0) = 0;
     virtual vector<MeshPositionVertexBuffersResponse> getMeshPositionVertexBuffers() const = 0;
+
+    virtual bool createVoxelGrid(const Vector3r& position, const int& x_size, const int& y_size, const int& z_size, const float& res, const std::string& output_file) = 0;
 
     // Recording APIs
     virtual void startRecording() = 0;
@@ -73,6 +79,8 @@ public:
     virtual bool isRecording() const = 0;
 
     virtual void setWind(const Vector3r& wind) const = 0;
+
+    virtual std::string getSettingsString() const = 0;
 };
 
 

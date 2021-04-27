@@ -117,9 +117,9 @@ public: //methods
             if (count_distance_sensors != 0) {
                 const auto& distance_output = getDistanceSensorData("");
 
-                sendDistanceSensor(distance_output.min_distance / 100, //m -> cm
-                    distance_output.max_distance / 100, //m -> cm
-                    distance_output.distance,
+                sendDistanceSensor(distance_output.min_distance * 100, //m -> cm
+                    distance_output.max_distance * 100, //m -> cm
+                    distance_output.distance * 100, //m-> cm
                     0, //sensor type: //TODO: allow changing in settings?
                     77, //sensor id, //TODO: should this be something real?
                     distance_output.relative_pose.orientation); //TODO: convert from radians to degrees?
@@ -371,6 +371,68 @@ public: //methods
             throw VehicleMoveException("goHome - timeout waiting for response from drone");
         }
         return rc;
+    }
+
+    virtual bool moveToPosition(float x, float y, float z, float velocity, float timeout_sec, DrivetrainType drivetrain,
+        const YawMode& yaw_mode, float lookahead, float adaptive_lookahead) override
+    {
+        SingleTaskCall lock(this);
+
+        unused(adaptive_lookahead);
+        unused(lookahead);
+        unused(drivetrain);
+
+        // save current manual, cruise, and max velocity parameters
+        bool result = false;
+        mavlinkcom::MavLinkParameter manual_velocity_parameter, cruise_velocity_parameter, max_velocity_parameter;
+        result = mav_vehicle_->getParameter("MPC_VEL_MANUAL").wait(1000, &manual_velocity_parameter);
+        result = result && mav_vehicle_->getParameter("MPC_XY_CRUISE").wait(1000, &cruise_velocity_parameter);
+        result = result && mav_vehicle_->getParameter("MPC_XY_VEL_MAX").wait(1000, &max_velocity_parameter);
+
+        if (result) {
+            // set max velocity parameter
+            mavlinkcom::MavLinkParameter p;
+            p.name = "MPC_XY_VEL_MAX";
+            p.value = velocity;
+            mav_vehicle_->setParameter(p).wait(1000, &result);
+
+            if (result) {
+                const Vector3r& goal_pos = Vector3r(x, y, z);
+                Vector3r goal_dist_vect;
+                float goal_dist;
+
+                Waiter waiter(getCommandPeriod(), timeout_sec, getCancelToken());
+
+                while (!waiter.isComplete()) {
+                    goal_dist_vect = getPosition() - goal_pos;
+                    const Vector3r& goal_normalized = goal_dist_vect.normalized();
+                    goal_dist = goal_dist_vect.dot(goal_normalized);
+
+                    if (goal_dist > getDistanceAccuracy()) {
+                        moveToPositionInternal(goal_pos, yaw_mode);
+
+                        //sleep for rest of the cycle
+                        if (!waiter.sleep())
+                            return false;
+                    }
+                    else {
+                        waiter.complete();
+                    }
+                }
+
+                // reset manual, cruise, and max velocity parameters
+                bool result_temp = false;
+                mav_vehicle_->setParameter(manual_velocity_parameter).wait(1000, &result);
+                mav_vehicle_->setParameter(cruise_velocity_parameter).wait(1000, &result_temp);
+                result = result && result_temp;
+                mav_vehicle_->setParameter(max_velocity_parameter).wait(1000, &result_temp);
+                result = result && result_temp;
+
+                return result && waiter.isComplete();
+            }
+        }
+
+        return result;
     }
 
     virtual bool hover() override
@@ -1339,7 +1401,7 @@ private: //methods
         if (!is_simulation_mode_)
             throw std::logic_error("Attempt to send simulated sensor messages while not in simulation mode");
 
-        auto now = static_cast<uint64_t>(Utils::getTimeSinceEpochNanos() / 1000.0);
+        auto now = clock()->nowNanos() / 1000;
         if (lock_step_enabled_) {
             if (last_hil_sensor_time_ + 100000 < now) {
                 // if 100 ms passes then something is terribly wrong, reset lockstep mode
@@ -1401,8 +1463,8 @@ private: //methods
             throw std::logic_error("Attempt to send simulated distance sensor messages while not in simulation mode");
 
         mavlinkcom::MavLinkDistanceSensor distance_sensor;
-        distance_sensor.time_boot_ms = static_cast<uint32_t>(Utils::getTimeSinceEpochNanos() / 1000000.0);
 
+        distance_sensor.time_boot_ms = static_cast<uint32_t>(clock()->nowNanos() / 1000000);
         distance_sensor.min_distance = static_cast<uint16_t>(min_distance);
         distance_sensor.max_distance = static_cast<uint16_t>(max_distance);
         distance_sensor.current_distance = static_cast<uint16_t>(current_distance);
