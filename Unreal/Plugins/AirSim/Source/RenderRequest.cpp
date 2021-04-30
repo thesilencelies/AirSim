@@ -1,6 +1,6 @@
 
-#include "CubemapUnwrapUtils.h"
 #include "RenderRequest.h"
+#include "CubemapUnwrapUtils.h"
 #include "TextureResource.h"
 #include "Engine/TextureRenderTarget2D.h"
 #include "Async/TaskGraphInterfaces.h"
@@ -101,6 +101,9 @@ void RenderRequest::getScreenshot(std::shared_ptr<RenderParams> params[], std::v
                     // Cube. If render_component only calls the overrided methods, 
                     // we can use polymorphism with virtual function calls.
                     temp_param->render_component_cube->CaptureSceneDeferred();
+
+                    // Get the raw 8bit data.
+                    unWarpTextureRenderTargetCube(temp_param->render_target_cube, results_[i]->cube_raw);
                 }
             }
         });
@@ -135,20 +138,22 @@ void RenderRequest::getScreenshot(std::shared_ptr<RenderParams> params[], std::v
             else {
                 results[i]->image_data_float.SetNumUninitialized(results[i]->width * results[i]->height);
                 float* ptr = results[i]->image_data_float.GetData();
+                UE_LOG(LogTemp, Warning, TEXT("Before copy 2D. "));
                 for (const auto& item : results[i]->bmp_float) {
                     *ptr++ = item.R.GetFloat();
                 }
+                UE_LOG(LogTemp, Warning, TEXT("After copy 2D. "));
             }
         } else { // params[i]->is_cube
-            // Get the raw 8bit data.
-            unWarpTextureRenderTargetCube(params[i]->render_target_cube, results[i]->cube_raw);
+            //// Get the raw 8bit data.
+            //unWarpTextureRenderTargetCube(params[i]->render_target_cube, results[i]->cube_raw);
 
             if (!params[i]->pixels_as_float) {
                 // RRG 8bit.
                 if (params[i]->compress) {
                     // Compress.
                     compressTArrayAsPng32bit( results[i]->cube_raw, results[i]->cube_image_data, 
-                        results[0]->width, results[1]->height, 100 );
+                        results[i]->width, results[i]->height, 100 );
                     // UAirBlueprintLib::CompressImageArray(results[i]->width, results[i]->height, results[i]->bmp, results[i]->image_data_uint8);
                     // Copy the data from TArray64 to TArray.
                     copyFromTArray2TArray( results[i]->cube_image_data, results[i]->image_data_uint8 );
@@ -164,9 +169,9 @@ void RenderRequest::getScreenshot(std::shared_ptr<RenderParams> params[], std::v
 
                 // Loop and copy.
                 float* ptr = results[i]->image_data_float.GetData();
-                const int N = results[i]->cube_raw.Num()/2;
-                for ( int i = 0; i < N; i += 4 ) {
-                    *ptr++ = *(tempF16 + i) * 0.01f; // Convert from centimeter to meter.
+                const int N = results[i]->cube_raw.Num()/2; // Every FFloat16 contains 2 uint8.
+                for ( int f16 = 0; f16 < N; f16 += 4 ) {
+                    *ptr++ = (tempF16 + f16)->GetFloat() * 0.01f; // Convert from centimeter to meter.
                 }
             }
         }

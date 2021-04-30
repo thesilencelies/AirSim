@@ -329,7 +329,7 @@ void APIPCamera::setCameraPose(const FTransform& pose)
 void APIPCamera::setCameraFoV(float fov_degrees)
 {
     // int image_count = static_cast<int>(Utils::toNumeric(ImageType::Count));
-    for (int image_type = 0; image_type < imageTypeCount2D(); ++image_type) {
+    for (int image_type = 0; image_type < static_cast<int>(imageTypeCount2D()); ++image_type) {
         captures_[image_type]->FOVAngle = fov_degrees;
     }
 }
@@ -353,7 +353,7 @@ void APIPCamera::setupCameraFromSettings(const APIPCamera::CameraSetting& camera
         this->SetActorTickEnabled(false);
 
     // int image_count = static_cast<int>(Utils::toNumeric(ImageType::Count));
-    for (int image_type = -1; image_type < imageTypeCount(); ++image_type) {
+    for (int image_type = -1; image_type < static_cast<int>(imageTypeCount()); ++image_type) {
         const auto& capture_setting = camera_setting.capture_settings.at(image_type);
         const auto& noise_setting = camera_setting.noise_settings.at(image_type);
 
