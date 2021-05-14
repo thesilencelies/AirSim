@@ -81,10 +81,6 @@ void APIPCamera::PostInitializeComponents()
         UAirBlueprintLib::GetActorComponent<USceneCaptureComponentCube>( this, TEXT("CubeSceneCaptureComponent") );
     captures_cube_[ImageCaptureBase::getCubeTypeIndex( ImageType::CubeDepth )] = 
         UAirBlueprintLib::GetActorComponent<USceneCaptureComponentCube>( this, TEXT("CubeDepthCaptureComponent") );
-
-    for ( int i = 0; i < 2; ++i ) {
-        UE_LOG(LogTemp, Warning, TEXT("captures_cube_[%d] = %d"), i, captures_cube_[i]);
-    }
 }
 
 void APIPCamera::BeginPlay()
@@ -437,8 +433,12 @@ void APIPCamera::updateCaptureComponentSettingCube(USceneCaptureComponentCube* c
         render_target->bForceLinearGamma = force_linear_gamma;
     } 
 
-    if (!std::isnan(setting.target_gamma))
+    // render_target->bHDR = false;
+
+    if (!std::isnan(setting.target_gamma)) {
         render_target->TargetGamma = setting.target_gamma;
+        // UE_LOG(LogTemp, Warning, TEXT("render_target->TargetGamma = %f. "), render_target->TargetGamma);
+    }
 }
 
 void APIPCamera::updateCameraSetting(UCameraComponent* camera, const CaptureSetting& setting, const NedTransform& ned_transform)
