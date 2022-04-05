@@ -37,6 +37,12 @@ class _ImageType(type):
         return 6
     def Infrared(cls):
         return 7
+    def FisheyeScene(cls):
+        return 8
+    def CubeScene(cls):
+        return 9
+    def CubeDepth(cls):
+        return 10
 
     def __getattr__(self, key):
         if key == 'DepthPlanner':
@@ -52,6 +58,8 @@ class ImageType(metaclass=_ImageType):
     Segmentation = 5
     SurfaceNormals = 6
     Infrared = 7
+    CubeScene = 8
+    CubeDepth = 9
 
 class DrivetrainType:
     MaxDegreeOfFreedom = 0
