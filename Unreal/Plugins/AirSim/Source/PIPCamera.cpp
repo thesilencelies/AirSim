@@ -43,11 +43,9 @@ APIPCamera::APIPCamera()
     image_type_to_pixel_format_map_.Add(5, EPixelFormat::PF_B8G8R8A8);
     image_type_to_pixel_format_map_.Add(6, EPixelFormat::PF_B8G8R8A8);
     image_type_to_pixel_format_map_.Add(7, EPixelFormat::PF_B8G8R8A8);
-    // Fisheye
-    image_type_to_pixel_format_map_.Add(8, EPixelFormat::PF_B8G8R8A8);    // Fisheye scene.
     // Cube.
-    image_type_to_pixel_format_map_.Add(9, EPixelFormat::PF_B8G8R8A8);    // Cube scene.
-    image_type_to_pixel_format_map_.Add(10, EPixelFormat::PF_FloatRGBA);   // Cube depth.
+    image_type_to_pixel_format_map_.Add(8, EPixelFormat::PF_B8G8R8A8);    // Cube scene.
+    image_type_to_pixel_format_map_.Add(9, EPixelFormat::PF_FloatRGBA);   // Cube depth.
 }
 
 void APIPCamera::PostInitializeComponents()
@@ -75,10 +73,6 @@ void APIPCamera::PostInitializeComponents()
     captures_[Utils::toNumeric(ImageType::SurfaceNormals)] =
         UAirBlueprintLib::GetActorComponent<USceneCaptureComponent2D>(this, TEXT("NormalsCaptureComponent"));
 
-    // fisheye
-    captures_[Utils::toNumeric(ImageType::FisheyeScene)] =
-        UAirBlueprintLib::GetActorComponent<USceneCaptureComponent2D>(this, TEXT("FisheyeSceneCaptureComponent"));
-
     // Cube.
     captures_cube_.Init(nullptr, cubeTypeCount());
     render_targets_cube_.Init(nullptr, cubeTypeCount());
@@ -87,7 +81,6 @@ void APIPCamera::PostInitializeComponents()
         UAirBlueprintLib::GetActorComponent<USceneCaptureComponentCube>(this, TEXT("CubeSceneCaptureComponent"));
     captures_cube_[ImageCaptureBase::getCubeTypeIndex(ImageType::CubeDepth)] =
         UAirBlueprintLib::GetActorComponent<USceneCaptureComponentCube>(this, TEXT("CubeDepthCaptureComponent"));
-
 }
 
 void APIPCamera::BeginPlay()
@@ -365,7 +358,6 @@ void APIPCamera::setupCameraFromSettings(const APIPCamera::CameraSetting& camera
                 switch (Utils::toEnum<ImageType>(image_type)) {
                 case ImageType::Scene:
                 case ImageType::Infrared:
-                case ImageType::FisheyeScene:
                     updateCaptureComponentSetting(captures_[image_type], render_targets_[image_type],
                         false, image_type_to_pixel_format_map_[image_type], capture_setting, ned_transform,
                         false);

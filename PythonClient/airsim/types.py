@@ -58,8 +58,9 @@ class ImageType(metaclass=_ImageType):
     Segmentation = 5
     SurfaceNormals = 6
     Infrared = 7
-    CubeScene = 8
-    CubeDepth = 9
+    FisheyeScene = 8
+    CubeScene = 9
+    CubeDepth = 10
 
 class DrivetrainType:
     MaxDegreeOfFreedom = 0
