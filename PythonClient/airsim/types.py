@@ -41,6 +41,12 @@ class _ImageType(type):
         return 8
     def OpticalFlowVis(cls):
         return 9
+    def FisheyeScene(cls):
+        return 10
+    def CubeScene(cls):
+        return 11
+    def CubeDepth(cls):
+        return 12
 
     def __getattr__(self, key):
         if key == 'DepthPlanner':
@@ -58,6 +64,9 @@ class ImageType(metaclass=_ImageType):
     Infrared = 7
     OpticalFlow = 8
     OpticalFlowVis = 9
+    FisheyeScene = 10
+    CubeScene = 11
+    CubeDepth = 12
 
 class DrivetrainType:
     MaxDegreeOfFreedom = 0

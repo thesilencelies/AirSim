@@ -121,4 +121,6 @@ void AComputerVisionPawn::Tick(float Delta)
 void AComputerVisionPawn::BeginPlay()
 {
     Super::BeginPlay();
+
+    UE_LOG(LogTemp, Warning, TEXT("Build 016. "));
 }

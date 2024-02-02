@@ -6,6 +6,9 @@
 *.user
 *.userosscache
 *.sln.docstates
+.idea/
+*.code-workspace
+cmake-build-debug/
 
 # User-specific files (MonoDevelop/Xamarin Studio)
 *.userprefs
