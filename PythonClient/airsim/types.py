@@ -14,8 +14,8 @@ class MsgpackMixin:
     @classmethod
     def from_msgpack(cls, encoded):
         obj = cls()
-        #obj.__dict__ = {k.decode('utf-8'): (from_msgpack(v.__class__, v) if hasattr(v, "__dict__") else v) for k, v in encoded.items()}
-        obj.__dict__ = { k : (v if not isinstance(v, dict) else getattr(getattr(obj, k).__class__, "from_msgpack")(v)) for k, v in encoded.items()}
+        obj.__dict__ = {k.decode('utf-8'): (from_msgpack(v.__class__, v) if hasattr(v, "__dict__") else v) for k, v in encoded.items()}
+        #obj.__dict__ = { str(k) : (str(v) if not isinstance(str(v), dict) else getattr(getattr(obj, str(k)).__class__, "from_msgpack")(str(v))) for k, v in encoded.items()}
         #return cls(**msgpack.unpack(encoded))
         return obj
 
