@@ -47,7 +47,7 @@ APIPCamera::APIPCamera(const FObjectInitializer& ObjectInitializer)
     image_type_to_pixel_format_map_.Add(Utils::toNumeric(ImageType::Infrared), EPixelFormat::PF_B8G8R8A8);
     image_type_to_pixel_format_map_.Add(Utils::toNumeric(ImageType::OpticalFlow), EPixelFormat::PF_B8G8R8A8);
     image_type_to_pixel_format_map_.Add(Utils::toNumeric(ImageType::OpticalFlowVis), EPixelFormat::PF_B8G8R8A8);
-    image_type_to_pixel_format_map_.Add(Utils::toNumeric(ImageType::Fisheye), EPixelFormat::PF_B8G8R8A8);
+    image_type_to_pixel_format_map_.Add(Utils::toNumeric(ImageType::FisheyeScene), EPixelFormat::PF_B8G8R8A8);
     image_type_to_pixel_format_map_.Add(Utils::toNumeric(ImageType::CubeScene), EPixelFormat::PF_B8G8R8A8);
     image_type_to_pixel_format_map_.Add(Utils::toNumeric(ImageType::CubeDepth), EPixelFormat::PF_FloatRGBA);
 
@@ -511,7 +511,7 @@ void APIPCamera::updateCaptureComponentSettingCube(USceneCaptureComponentCube* c
     }
 }
 
-void APIPCamera::updateCameraSetting(UCameraComponent* camera, const CaptureSetting& setting, const NedTransform& ned_transform)
+void APIPCamera::updateCameraSetting(UCineCameraComponent* camera, const CaptureSetting& setting, const NedTransform& ned_transform)
 {
     //if (!std::isnan(setting.target_gamma))
     //    camera-> = setting.target_gamma;
@@ -734,7 +734,7 @@ void APIPCamera::disableMain()
 void APIPCamera::onViewModeChanged(bool nodisplay)
 {
     for (unsigned int image_type = 0; image_type < imageTypeCount(); ++image_type) {
-        auto capture = getCaptureComponentGeneral(static_cast<ImageType>(image_type), false);
+        auto capture = getCaptureComponent(static_cast<ImageType>(image_type), false);
         if (capture) {
             setCaptureUpdate(capture, nodisplay);
         }
