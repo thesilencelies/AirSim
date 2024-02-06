@@ -11,6 +11,7 @@
 #include <exception>
 #include "AirBlueprintLib.h"
 
+static int nCameras = 0;
 //CinemAirSim
 APIPCamera::APIPCamera(const FObjectInitializer& ObjectInitializer)
     : Super(ObjectInitializer
@@ -35,7 +36,17 @@ APIPCamera::APIPCamera(const FObjectInitializer& ObjectInitializer)
                                            "",
                                            LogDebugLevel::Failure);
 
+    static ConstructorHelpers::FObjectFinder<UMaterial> fisheye_mat_finder(TEXT("Material'/AirSim/Material/FisheyeCubeRenderMat.FisheyeCubeRenderMat'"));
+    if (fisheye_mat_finder.Succeeded())
+    {
+        fisheye_render_material_static_ = fisheye_mat_finder.Object;
+    }
+    else
+        UAirBlueprintLib::LogMessageString("Cannot create fisheye material for the PIPCamera",
+            "", LogDebugLevel::Failure);
+
     PrimaryActorTick.bCanEverTick = true;
+    cameraIndex = nCameras++;
 
     image_type_to_pixel_format_map_.Add(Utils::toNumeric(ImageType::Scene), EPixelFormat::PF_B8G8R8A8);
     image_type_to_pixel_format_map_.Add(Utils::toNumeric(ImageType::DepthPlanar), EPixelFormat::PF_DepthStencil); // not used. init_auto_format is called in setupCameraFromSettings()
@@ -60,9 +71,9 @@ void APIPCamera::PostInitializeComponents()
 
     //CinemAirSim
     camera_ = UAirBlueprintLib::GetActorComponent<UCineCameraComponent>(this, TEXT("CameraComponent"));
-    captures_.Init(nullptr, imageTypeCount());
-    render_targets_.Init(nullptr, imageTypeCount());
-    detections_.Init(nullptr, imageTypeCount());
+    captures_.Init(nullptr, imageTypeCount2D());
+    render_targets_.Init(nullptr, imageTypeCount2D());
+    detections_.Init(nullptr, imageTypeCount2D());
 
     captures_[Utils::toNumeric(ImageType::Scene)] =
         UAirBlueprintLib::GetActorComponent<USceneCaptureComponent2D>(this, TEXT("SceneCaptureComponent"));
@@ -84,16 +95,17 @@ void APIPCamera::PostInitializeComponents()
         UAirBlueprintLib::GetActorComponent<USceneCaptureComponent2D>(this, TEXT("OpticalFlowCaptureComponent"));
     captures_[Utils::toNumeric(ImageType::OpticalFlowVis)] =
         UAirBlueprintLib::GetActorComponent<USceneCaptureComponent2D>(this, TEXT("OpticalFlowVisCaptureComponent"));
-    // Cube.
-    captures_cube_.Init(nullptr, cubeTypeCount());
-    render_targets_cube_.Init(nullptr, cubeTypeCount());
 
-    captures_cube_[ImageCaptureBase::getCubeTypeIndex(ImageType::CubeScene)] =
-        UAirBlueprintLib::GetActorComponent<USceneCaptureComponentCube>(this, TEXT("CubeSceneCaptureComponent"));
-    captures_cube_[ImageCaptureBase::getCubeTypeIndex(ImageType::CubeDepth)] =
-        UAirBlueprintLib::GetActorComponent<USceneCaptureComponentCube>(this, TEXT("CubeDepthCaptureComponent"));
+    // fisheye
+    captures_[Utils::toNumeric(ImageType::FisheyeScene)] =
+        UAirBlueprintLib::GetActorComponent<USceneCaptureComponent2D>(this, TEXT("FisheyeSceneCaptureComponent"));
 
-    for (unsigned int i = 0; i < imageTypeCount(); ++i) {
+    fisheye_cube_capture_ =
+        UAirBlueprintLib::GetActorComponent<USceneCaptureComponentCube>(this, TEXT("FisheyeCubeCaptureComponent"));
+    fisheye_render_sphere_ =
+        UAirBlueprintLib::GetActorComponent<UStaticMeshComponent>(this, TEXT("FisheyeSphere"));
+
+    for (unsigned int i = 0; i < imageTypeCount2D(); ++i) {
         detections_[i] = NewObject<UDetectionComponent>(this);
         if (detections_[i]) {
             detections_[i]->SetupAttachment(captures_[i]);
@@ -101,6 +113,27 @@ void APIPCamera::PostInitializeComponents()
             detections_[i]->Deactivate();
         }
     }
+
+    // Cube.
+    captures_cube_.Init(nullptr, cubeTypeCount());
+    render_targets_cube_.Init(nullptr, cubeTypeCount());
+    //detections_cube_.Init(nullptr, cubeTypeCount());
+
+    captures_cube_[ImageCaptureBase::getCubeTypeIndex(ImageType::CubeScene)] =
+        UAirBlueprintLib::GetActorComponent<USceneCaptureComponentCube>(this, TEXT("CubeSceneCaptureComponent"));
+    captures_cube_[ImageCaptureBase::getCubeTypeIndex(ImageType::CubeDepth)] =
+        UAirBlueprintLib::GetActorComponent<USceneCaptureComponentCube>(this, TEXT("CubeDepthCaptureComponent"));
+
+    //for (unsigned int i = 0; i < cubeTypeCount(); ++i) {
+    //    detections_cube_[i] = NewObject<UDetectionComponent>(this);
+    //    if (detections_cube_[i]) {
+    //        detections_cube_[i]->SetupAttachment(captures_cube_[i]);
+    //        detections_cube_[i]->RegisterComponent();
+    //        detections_cube_[i]->Deactivate();
+    //    }
+    //}
+
+
     //set initial focal length
     camera_->CurrentFocalLength = 11.9;
 
@@ -132,12 +165,30 @@ void APIPCamera::BeginPlay()
         render_targets_cube_[cube_type] = NewObject<UTextureRenderTargetCube>();
     }
 
+    // set up the fisheye render
+    if (fisheye_render_sphere_ != nullptr) {
+        fisheye_cube_target_ = NewObject<UTextureRenderTargetCube>();
+        fisheye_render_material_dynamic_ = UMaterialInstanceDynamic::Create(fisheye_render_material_static_, fisheye_render_sphere_);
+        fisheye_render_material_dynamic_->SetTextureParameterValue("Cube", fisheye_cube_target_);
+        fisheye_render_sphere_->SetMaterial(0, fisheye_render_material_dynamic_);
+    }
+    setFisheyeRenderPos();
+
     gimbal_stabilization_ = 0;
     gimbald_rotator_ = this->GetActorRotation();
     this->SetActorTickEnabled(false);
 
     if (distortion_param_collection_)
         distortion_param_instance_ = this->GetWorld()->GetParameterCollectionInstance(distortion_param_collection_);
+}
+
+void APIPCamera::setFisheyeRenderPos() {
+    if (fisheye_render_sphere_ != nullptr) {
+        // move them to the right locations
+        captures_[Utils::toNumeric(ImageType::FisheyeScene)]->SetWorldLocationAndRotation(
+            FVector(2000 * cameraIndex, 0, -10000), FQuat::MakeFromEuler({ 0,-90,0 }));
+        fisheye_render_sphere_->SetWorldLocationAndRotation(FVector(2000 * cameraIndex, 0, -11000), FQuat::MakeFromEuler({ 0,-90,0 }));
+    }
 }
 
 msr::airlib::ProjectionMatrix APIPCamera::getProjectionMatrix(const APIPCamera::ImageType image_type) const
@@ -324,7 +375,7 @@ void APIPCamera::setCameraTypeEnabled(ImageType type, bool enabled)
     enableCaptureComponent(type, enabled);
 }
 
-void APIPCamera::setCaptureUpdate(USceneCaptureComponent2D* capture, bool nodisplay)
+void APIPCamera::setCaptureUpdate(USceneCaptureComponent* capture, bool nodisplay)
 {
     capture->bCaptureEveryFrame = !nodisplay;
     capture->bCaptureOnMovement = !nodisplay;
@@ -333,7 +384,7 @@ void APIPCamera::setCaptureUpdate(USceneCaptureComponent2D* capture, bool nodisp
 
 void APIPCamera::setCameraTypeUpdate(ImageType type, bool nodisplay)
 {
-    USceneCaptureComponent2D* capture = getCaptureComponent(type, false);
+    USceneCaptureComponent* capture = getCaptureComponentGeneral(type, false);
     if (capture != nullptr)
         setCaptureUpdate(capture, nodisplay);
 }
@@ -416,6 +467,16 @@ void APIPCamera::setupCameraFromSettings(const APIPCamera::CameraSetting& camera
     else
         this->SetActorTickEnabled(false);
 
+    if (fisheye_cube_target_ != nullptr) {
+        // fisheye needs the tick to keep it stable
+        this->SetActorTickEnabled(true);
+        fisheye_cube_target_->InitAutoFormat(fisheyeCubeResolution);
+    }
+    if (fisheye_cube_capture_ != nullptr) {
+        fisheye_cube_capture_->bCaptureEveryFrame = true;
+        fisheye_cube_capture_->bCaptureOnMovement = true;
+    }
+
     // int image_count = static_cast<int>(Utils::toNumeric(ImageType::Count));
     for (int image_type = -1; image_type < static_cast<int>(imageTypeCount()); ++image_type) {
         const auto& capture_setting = camera_setting.capture_settings.at(image_type);
@@ -433,6 +494,11 @@ if (!ImageCaptureBase::isCubeType(image_type)) {
             case ImageType::Scene:
             case ImageType::Infrared:
                 updateCaptureComponentSetting(captures_[image_type], render_targets_[image_type], false, pixel_format, capture_setting, ned_transform, false);
+                break;
+            case ImageType::FisheyeScene:
+                updateCaptureComponentSetting(captures_[image_type], render_targets_[image_type],
+                    false, image_type_to_pixel_format_map_[image_type], capture_setting, ned_transform,
+                    false);
                 break;
 
             case ImageType::Segmentation:
@@ -609,34 +675,34 @@ void APIPCamera::setNoiseMaterial(int image_type, UObject* outer, FPostProcessSe
 
 void APIPCamera::enableCaptureComponent(const APIPCamera::ImageType type, bool is_enabled)
 {
-        if (!ImageCaptureBase::isCubeType(type)) {
-    USceneCaptureComponent2D* capture = getCaptureComponent(type, false);
-    if (capture != nullptr) {
-        UDetectionComponent* detection = getDetectionComponent(type, false);
-        if (is_enabled) {
-            //do not make unnecessary calls to Activate() which otherwise causes crash in Unreal
-            if (!capture->IsActive() || capture->TextureTarget == nullptr) {
-                capture->TextureTarget = getRenderTarget(type, false);
-                capture->Activate();
-                if (detection != nullptr) {
-                    detection->texture_target_ = capture->TextureTarget;
-                    detection->Activate();
+    if (!ImageCaptureBase::isCubeType(type)) {
+        USceneCaptureComponent2D* capture = getCaptureComponent(type, false);
+        if (capture != nullptr) {
+            UDetectionComponent* detection = getDetectionComponent(type, false);
+            if (is_enabled) {
+                //do not make unnecessary calls to Activate() which otherwise causes crash in Unreal
+                if (!capture->IsActive() || capture->TextureTarget == nullptr) {
+                    capture->TextureTarget = getRenderTarget(type, false);
+                    capture->Activate();
+                    if (detection != nullptr) {
+                        detection->texture_target_ = capture->TextureTarget;
+                        detection->Activate();
+                    }
                 }
             }
-        }
-        else {
-            if (capture->IsActive() || capture->TextureTarget != nullptr) {
-                capture->Deactivate();
-                capture->TextureTarget = nullptr;
-                if (detection != nullptr) {
-                    detection->Deactivate();
-                    detection->texture_target_ = nullptr;
+            else {
+                if (capture->IsActive() || capture->TextureTarget != nullptr) {
+                    capture->Deactivate();
+                    capture->TextureTarget = nullptr;
+                    if (detection != nullptr) {
+                        detection->Deactivate();
+                        detection->texture_target_ = nullptr;
+                    }
                 }
+                camera_type_enabled_[Utils::toNumeric(type)] = is_enabled;
             }
-            camera_type_enabled_[Utils::toNumeric(type)] = is_enabled;
         }
     }
-        }
     else {
         USceneCaptureComponentCube* capture = getCaptureComponentCube(type, false);
         if (capture != nullptr) {
@@ -654,6 +720,22 @@ void APIPCamera::enableCaptureComponent(const APIPCamera::ImageType type, bool i
                 }
             }
             camera_type_enabled_[Utils::toNumeric(type)] = is_enabled;
+        }
+    }
+    if (type == APIPCamera::ImageType::FisheyeScene) {
+        if (is_enabled) {
+            if (!fisheye_cube_capture_->IsActive() || fisheye_cube_capture_->TextureTarget == nullptr) {
+                fisheye_render_sphere_->SetVisibility(true);
+                fisheye_cube_capture_->TextureTarget = fisheye_cube_target_;
+                fisheye_cube_capture_->Activate();
+            }
+        }
+        else {
+            if (fisheye_cube_capture_->IsActive()) {
+                fisheye_cube_capture_->Deactivate();
+                fisheye_cube_capture_->TextureTarget = nullptr;
+            }
+            fisheye_render_sphere_->SetVisibility(false);
         }
     }
 }
@@ -734,10 +816,19 @@ void APIPCamera::disableMain()
 void APIPCamera::onViewModeChanged(bool nodisplay)
 {
     for (unsigned int image_type = 0; image_type < imageTypeCount(); ++image_type) {
-        auto capture = getCaptureComponent(static_cast<ImageType>(image_type), false);
+        auto capture = getCaptureComponentGeneral(static_cast<ImageType>(image_type), false);
         if (capture) {
             setCaptureUpdate(capture, nodisplay);
         }
+    }
+}
+
+void APIPCamera::prepareCapture(ImageType type) {
+    if (type == ImageType::FisheyeScene && fisheye_cube_capture_ != nullptr) {
+        AsyncTask(ENamedThreads::GameThread, [this]() {
+            check(IsInGameThread());
+            fisheye_cube_capture_->CaptureSceneDeferred();
+            });
     }
 }
 
@@ -887,7 +978,7 @@ std::string APIPCamera::getCurrentFieldOfView() const
 
 void APIPCamera::copyCameraSettingsToAllSceneCapture(UCameraComponent* camera)
 {
-    int image_count = static_cast<int>(Utils::toNumeric(ImageType::Count));
+    int image_count = imageTypeCount2D();
     for (int image_type = image_count - 1; image_type >= 0; image_type--) {
         copyCameraSettingsToSceneCapture(camera_, captures_[image_type]);
     }

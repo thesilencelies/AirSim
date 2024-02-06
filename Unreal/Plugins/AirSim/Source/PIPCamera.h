@@ -45,6 +45,7 @@ public:
     void disableAllPIP();
     void disableMain();
     void onViewModeChanged(bool nodisplay);
+    void prepareCapture(ImageType type);
 
     //CinemAirSim methods
     std::vector<std::string> getPresetLensSettings() const;
@@ -67,7 +68,7 @@ public:
 
     void setCameraTypeEnabled(ImageType type, bool enabled);
     bool getCameraTypeEnabled(ImageType type) const;
-    void setCaptureUpdate(USceneCaptureComponent2D* capture, bool nodisplay);
+    void setCaptureUpdate(USceneCaptureComponent* capture, bool nodisplay);
     void setCameraTypeUpdate(ImageType type, bool nodisplay);
 
     void setupCameraFromSettings(const CameraSetting& camera_setting, const NedTransform& ned_transform);
@@ -96,6 +97,13 @@ private: //members
     UPROPERTY()
     UMaterialParameterCollectionInstance* distortion_param_instance_;
 
+    UPROPERTY() UStaticMeshComponent* fisheye_render_sphere_;
+    UPROPERTY() UMaterialInstanceDynamic* fisheye_render_material_dynamic_;
+    UPROPERTY() UMaterial* fisheye_render_material_static_;
+
+    UPROPERTY() USceneCaptureComponentCube* fisheye_cube_capture_;
+    UPROPERTY() UTextureRenderTargetCube* fisheye_cube_target_;
+
     UPROPERTY()
     TArray<USceneCaptureComponent2D*> captures_;
     UPROPERTY()
@@ -109,6 +117,8 @@ private: //members
     // Cube.
     UPROPERTY() TArray<USceneCaptureComponentCube*> captures_cube_;
     UPROPERTY() TArray<UTextureRenderTargetCube*> render_targets_cube_;
+    //UPROPERTY()
+    //TArray<UDetectionComponentCube*> detections_cube_;
 
     //TMap<int, UMaterialInstanceDynamic*> noise_materials_;
     //below is needed because TMap doesn't work with UPROPERTY, but we do have -ve index
@@ -128,12 +138,15 @@ private: //members
     TMap<int, EPixelFormat> image_type_to_pixel_format_map_;
 
     FObjectFilter object_filter_;
+    int fisheyeCubeResolution = 2048;
+    int cameraIndex;
 
 private: //methods
     typedef common_utils::Utils Utils;
     typedef AirSimSettings::CaptureSetting CaptureSetting;
     typedef AirSimSettings::NoiseSetting NoiseSetting;
 
+    void setFisheyeRenderPos();
     static unsigned int imageTypeCount();
     //Cube.
     static unsigned int imageTypeCount2D();
